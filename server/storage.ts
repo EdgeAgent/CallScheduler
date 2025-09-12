@@ -1,5 +1,8 @@
-import { type User, type InsertUser, type Contact, type InsertContact, type Call, type InsertCall, type Appointment, type InsertAppointment, type Configuration, type InsertConfiguration } from "@shared/schema";
+import { type User, type InsertUser, type Contact, type InsertContact, type Call, type InsertCall, type Appointment, type InsertAppointment, type Configuration, type InsertConfiguration, users, contacts, calls, appointments, configurations } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import { Pool } from '@neondatabase/serverless';
+import { eq, and, gte, lt } from 'drizzle-orm';
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -11,6 +14,7 @@ export interface IStorage {
   getContact(id: string): Promise<Contact | undefined>;
   createContact(contact: InsertContact): Promise<Contact>;
   updateContact(id: string, contact: Partial<Contact>): Promise<Contact | undefined>;
+  deleteContact(id: string): Promise<boolean>;
   
   // Calls
   getCalls(): Promise<Call[]>;
@@ -22,9 +26,11 @@ export interface IStorage {
   // Appointments
   getAppointments(): Promise<Appointment[]>;
   getTodayAppointments(): Promise<Appointment[]>;
+  getAppointmentsByMonth(year: number, month: number): Promise<Appointment[]>;
   getAppointment(id: string): Promise<Appointment | undefined>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
   updateAppointment(id: string, appointment: Partial<Appointment>): Promise<Appointment | undefined>;
+  deleteAppointment(id: string): Promise<boolean>;
   
   // Configuration
   getConfiguration(): Promise<Configuration | undefined>;
@@ -207,6 +213,10 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
+  async deleteContact(id: string): Promise<boolean> {
+    return this.contacts.delete(id);
+  }
+
   async getCalls(): Promise<Call[]> {
     return Array.from(this.calls.values());
   }
@@ -269,6 +279,15 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getAppointmentsByMonth(year: number, month: number): Promise<Appointment[]> {
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 1);
+
+    return Array.from(this.appointments.values()).filter(
+      appointment => appointment.scheduledTime >= monthStart && appointment.scheduledTime < monthEnd
+    );
+  }
+
   async getAppointment(id: string): Promise<Appointment | undefined> {
     return this.appointments.get(id);
   }
@@ -298,6 +317,10 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
+  async deleteAppointment(id: string): Promise<boolean> {
+    return this.appointments.delete(id);
+  }
+
   async getConfiguration(): Promise<Configuration | undefined> {
     return this.configuration;
   }
@@ -324,4 +347,160 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  private db: ReturnType<typeof drizzle>;
+
+  constructor() {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    this.db = drizzle(pool);
+  }
+
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await this.db.select().from(users).where(eq(users.username, username)).limit(1);
+    return result[0];
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const result = await this.db.insert(users).values(insertUser).returning();
+    return result[0];
+  }
+
+  async getContacts(): Promise<Contact[]> {
+    return await this.db.select().from(contacts);
+  }
+
+  async getContact(id: string): Promise<Contact | undefined> {
+    const result = await this.db.select().from(contacts).where(eq(contacts.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createContact(insertContact: InsertContact): Promise<Contact> {
+    const result = await this.db.insert(contacts).values(insertContact).returning();
+    return result[0];
+  }
+
+  async updateContact(id: string, contactUpdate: Partial<Contact>): Promise<Contact | undefined> {
+    const result = await this.db
+      .update(contacts)
+      .set(contactUpdate)
+      .where(eq(contacts.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteContact(id: string): Promise<boolean> {
+    const result = await this.db.delete(contacts).where(eq(contacts.id, id));
+    return result.rowCount > 0;
+  }
+
+  async getCalls(): Promise<Call[]> {
+    return await this.db.select().from(calls);
+  }
+
+  async getCall(id: string): Promise<Call | undefined> {
+    const result = await this.db.select().from(calls).where(eq(calls.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getActiveCalls(): Promise<Call[]> {
+    return await this.db.select().from(calls).where(eq(calls.status, 'active'));
+  }
+
+  async createCall(insertCall: InsertCall): Promise<Call> {
+    const result = await this.db.insert(calls).values(insertCall).returning();
+    return result[0];
+  }
+
+  async updateCall(id: string, callUpdate: Partial<Call>): Promise<Call | undefined> {
+    const result = await this.db
+      .update(calls)
+      .set(callUpdate)
+      .where(eq(calls.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getAppointments(): Promise<Appointment[]> {
+    return await this.db.select().from(appointments);
+  }
+
+  async getTodayAppointments(): Promise<Appointment[]> {
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+
+    return await this.db
+      .select()
+      .from(appointments)
+      .where(and(
+        gte(appointments.scheduledTime, todayStart),
+        lt(appointments.scheduledTime, todayEnd)
+      ));
+  }
+
+  async getAppointmentsByMonth(year: number, month: number): Promise<Appointment[]> {
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 1);
+
+    return await this.db
+      .select()
+      .from(appointments)
+      .where(and(
+        gte(appointments.scheduledTime, monthStart),
+        lt(appointments.scheduledTime, monthEnd)
+      ));
+  }
+
+  async getAppointment(id: string): Promise<Appointment | undefined> {
+    const result = await this.db.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createAppointment(insertAppointment: InsertAppointment): Promise<Appointment> {
+    const result = await this.db.insert(appointments).values(insertAppointment).returning();
+    return result[0];
+  }
+
+  async updateAppointment(id: string, appointmentUpdate: Partial<Appointment>): Promise<Appointment | undefined> {
+    const result = await this.db
+      .update(appointments)
+      .set(appointmentUpdate)
+      .where(eq(appointments.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteAppointment(id: string): Promise<boolean> {
+    const result = await this.db.delete(appointments).where(eq(appointments.id, id));
+    return result.rowCount > 0;
+  }
+
+  async getConfiguration(): Promise<Configuration | undefined> {
+    const result = await this.db.select().from(configurations).limit(1);
+    return result[0];
+  }
+
+  async updateConfiguration(configUpdate: Partial<Configuration>): Promise<Configuration> {
+    const existing = await this.getConfiguration();
+    
+    if (existing) {
+      const result = await this.db
+        .update(configurations)
+        .set(configUpdate)
+        .where(eq(configurations.id, existing.id))
+        .returning();
+      return result[0];
+    } else {
+      const result = await this.db.insert(configurations).values(configUpdate).returning();
+      return result[0];
+    }
+  }
+}
+
+export const storage = new DatabaseStorage();
