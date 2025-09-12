@@ -1,4 +1,4 @@
-import { Phone, BarChart3, PhoneCall, Calendar, History, Users, Settings, User } from "lucide-react";
+import { Phone, BarChart3, PhoneCall, Calendar, History, Users, Settings, User, Megaphone } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 
@@ -6,6 +6,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3, current: true },
   { name: 'Scheduler', href: '/scheduler', icon: Calendar, current: false },
   { name: 'Calendar', href: '/calendar', icon: Calendar, current: false },
+  { name: 'Campaigns', href: '/campaigns', icon: Megaphone, current: false },
   { name: 'Settings', href: '/settings', icon: Settings, current: false },
 ];
 

@@ -7,6 +7,7 @@ import { CallHistory } from "@/components/dashboard/CallHistory";
 import { VoiceConfiguration } from "@/components/dashboard/VoiceConfiguration";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { Link } from "wouter";
 
 export default function Dashboard() {
   return (
@@ -27,10 +28,12 @@ export default function Dashboard() {
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="text-sm font-medium">Twilio Connected</span>
               </div>
-              <Button data-testid="button-new-campaign">
-                <Plus className="mr-2 h-4 w-4" />
-                New Campaign
-              </Button>
+              <Link href="/campaigns">
+                <Button data-testid="button-new-campaign">
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Campaign
+                </Button>
+              </Link>
             </div>
           </div>
         </header>

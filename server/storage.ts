@@ -344,6 +344,14 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
       updatedAt: new Date(),
       ...campaign,
+      status: campaign.status || 'draft',
+      voice: campaign.voice || 'sarah',
+      description: campaign.description || null,
+      contactIds: campaign.contactIds || [],
+      totalContacts: campaign.totalContacts || 0,
+      callsMade: campaign.callsMade || 0,
+      successfulCalls: campaign.successfulCalls || 0,
+      appointmentsBooked: campaign.appointmentsBooked || 0,
     };
     this.campaigns.set(newCampaign.id, newCampaign);
     return newCampaign;

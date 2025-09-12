@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { twilioService, updateTwilioConfiguration } from "./services/twilioService";
 import { openaiService, updateOpenAIConfiguration, type ConversationMessage } from "./services/openaiService";
-import { insertCallSchema, insertContactSchema, insertAppointmentSchema, insertConfigurationSchema } from "@shared/schema";
+import { insertCallSchema, insertContactSchema, insertAppointmentSchema, insertCampaignSchema, insertConfigurationSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -424,6 +424,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({ message: 'Appointment deleted successfully' });
       } else {
         res.status(404).json({ message: 'Appointment not found' });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Update appointment
+  app.put('/api/appointments/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const appointmentUpdate = insertAppointmentSchema.partial().parse(req.body);
+      const updatedAppointment = await storage.updateAppointment(id, appointmentUpdate);
+      if (updatedAppointment) {
+        broadcastUpdate('appointment_updated', updatedAppointment);
+        res.json(updatedAppointment);
+      } else {
+        res.status(404).json({ message: 'Appointment not found' });
+      }
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Get all campaigns
+  app.get('/api/campaigns', async (req, res) => {
+    try {
+      const campaigns = await storage.getCampaigns();
+      res.json(campaigns);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Get campaign by ID
+  app.get('/api/campaigns/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const campaign = await storage.getCampaign(id);
+      if (campaign) {
+        res.json(campaign);
+      } else {
+        res.status(404).json({ message: 'Campaign not found' });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create campaign
+  app.post('/api/campaigns', async (req, res) => {
+    try {
+      const campaign = insertCampaignSchema.parse(req.body);
+      const newCampaign = await storage.createCampaign(campaign);
+      broadcastUpdate('campaign_created', newCampaign);
+      res.json(newCampaign);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Update campaign
+  app.put('/api/campaigns/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const campaignUpdate = insertCampaignSchema.partial().parse(req.body);
+      const updatedCampaign = await storage.updateCampaign(id, campaignUpdate);
+      if (updatedCampaign) {
+        broadcastUpdate('campaign_updated', updatedCampaign);
+        res.json(updatedCampaign);
+      } else {
+        res.status(404).json({ message: 'Campaign not found' });
+      }
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Delete campaign
+  app.delete('/api/campaigns/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.deleteCampaign(id);
+      if (success) {
+        broadcastUpdate('campaign_deleted', { id });
+        res.json({ message: 'Campaign deleted successfully' });
+      } else {
+        res.status(404).json({ message: 'Campaign not found' });
       }
     } catch (error: any) {
       res.status(500).json({ message: error.message });
