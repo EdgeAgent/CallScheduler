@@ -32,12 +32,12 @@ The backend uses TypeScript with ESM modules and includes error handling middlew
 ### Data Storage Solutions
 Currently implements an in-memory storage system through the `MemStorage` class, which provides:
 - **User Management**: Authentication and user data storage
-- **Contact Management**: Customer contact information and notes
+- **Contact Management**: Customer contact information and notes with full CRUD operations
 - **Call Tracking**: Call history, status, and conversation logs
-- **Appointment Scheduling**: Meeting coordination and status tracking
+- **Appointment Scheduling**: Complete appointment management with calendar integration, monthly filtering, and deletion capabilities
 - **Configuration Storage**: System settings and AI voice preferences
 
-The storage is designed with a database abstraction layer for easy migration to PostgreSQL using Drizzle ORM (schema defined but not yet connected).
+The storage is designed with a database abstraction layer for easy migration to PostgreSQL using Drizzle ORM (schema defined but not yet connected). Enhanced with delete operations and monthly appointment queries for calendar functionality.
 
 ### Authentication and Authorization
 Basic user management system with:
@@ -86,6 +86,16 @@ The system broadcasts updates to all connected clients automatically when call s
 - **PostCSS**: CSS processing with Tailwind CSS integration
 
 ## Recent Changes
+
+### Calendar and Client Management System (September 12, 2025)
+- **Complete calendar system**: Built monthly calendar grid interface with click-to-schedule functionality for appointment booking
+- **Appointment management**: Full CRUD operations - create appointments by clicking calendar dates, view scheduled appointments, delete from Today's Appointments panel
+- **Client management interface**: Contact creation, editing, and deletion through dedicated forms and management panels
+- **API endpoints**: Added DELETE endpoints for appointments and contacts, plus monthly appointment queries (/api/appointments/month/:year/:month)
+- **Enhanced navigation**: Calendar page integrated into sidebar navigation with proper routing to /calendar
+- **Validation system**: Fixed critical backend validation to handle ISO string dates from frontend datetime inputs
+- **Storage operations**: Extended storage interface with delete methods and monthly filtering capabilities
+- **User interface**: Responsive calendar grid, appointment dialogs, contact forms, and real-time updates
 
 ### API Configuration System (September 12, 2025)
 - **Complete API credential configuration system**: Users can now supply their own Twilio and OpenAI API keys through a secure settings interface instead of relying on hardcoded environment variables
