@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/dashboard";
 import Scheduler from "@/pages/scheduler";
+import { Calendar } from "@/pages/calendar";
 import { Settings } from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
@@ -13,6 +14,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/scheduler" component={Scheduler} />
+      <Route path="/calendar" component={Calendar} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>

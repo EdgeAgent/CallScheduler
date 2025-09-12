@@ -78,6 +78,10 @@ export const insertCallSchema = createInsertSchema(calls).omit({
 export const insertAppointmentSchema = createInsertSchema(appointments).omit({
   id: true,
   createdAt: true,
+}).extend({
+  scheduledTime: z.string().or(z.date()).transform((val) => {
+    return typeof val === 'string' ? new Date(val) : val;
+  }),
 });
 
 export const insertConfigurationSchema = createInsertSchema(configurations).omit({

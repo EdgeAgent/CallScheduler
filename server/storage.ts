@@ -395,7 +395,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteContact(id: string): Promise<boolean> {
     const result = await this.db.delete(contacts).where(eq(contacts.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   async getCalls(): Promise<Call[]> {
@@ -478,7 +478,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAppointment(id: string): Promise<boolean> {
     const result = await this.db.delete(appointments).where(eq(appointments.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   async getConfiguration(): Promise<Configuration | undefined> {
@@ -503,4 +503,4 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+export const storage = new MemStorage();

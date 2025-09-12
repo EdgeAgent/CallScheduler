@@ -93,6 +93,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete contact
+  app.delete('/api/contacts/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.deleteContact(id);
+      if (success) {
+        res.json({ message: 'Contact deleted successfully' });
+      } else {
+        res.status(404).json({ message: 'Contact not found' });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get all calls
   app.get('/api/calls', async (req, res) => {
     try {
@@ -370,6 +385,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get appointments by month for calendar view
+  app.get('/api/appointments/month/:year/:month', async (req, res) => {
+    try {
+      const year = parseInt(req.params.year);
+      const month = parseInt(req.params.month);
+      
+      if (isNaN(year) || isNaN(month) || month < 0 || month > 11) {
+        return res.status(400).json({ message: 'Invalid year or month' });
+      }
+      
+      const appointments = await storage.getAppointmentsByMonth(year, month);
+      res.json(appointments);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Create appointment
   app.post('/api/appointments', async (req, res) => {
     try {
@@ -379,6 +411,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(newAppointment);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Delete appointment
+  app.delete('/api/appointments/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.deleteAppointment(id);
+      if (success) {
+        broadcastUpdate('appointment_deleted', { id });
+        res.json({ message: 'Appointment deleted successfully' });
+      } else {
+        res.status(404).json({ message: 'Appointment not found' });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
     }
   });
 
