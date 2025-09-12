@@ -379,7 +379,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const safeConfig = {
           ...config,
           twilioAccountSid: config.twilioAccountSid ? '***HIDDEN***' : null,
-          twilioAuthToken: config.twilioAuthToken ? '***HIDDEN***' : null
+          twilioAuthToken: config.twilioAuthToken ? '***HIDDEN***' : null,
+          openaiApiKey: config.openaiApiKey ? '***HIDDEN***' : null
         };
         res.json(safeConfig);
       } else {

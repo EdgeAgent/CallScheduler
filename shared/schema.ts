@@ -56,6 +56,7 @@ export const configurations = pgTable("configurations", {
   twilioAccountSid: text("twilio_account_sid"),
   twilioAuthToken: text("twilio_auth_token"),
   twilioPhoneNumber: text("twilio_phone_number"),
+  openaiApiKey: text("openai_api_key"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({

@@ -54,6 +54,7 @@ export class MemStorage implements IStorage {
       twilioAccountSid: null,
       twilioAuthToken: null,
       twilioPhoneNumber: null,
+      openaiApiKey: null,
     };
     
     // Add demo data for testing
@@ -313,6 +314,7 @@ export class MemStorage implements IStorage {
         twilioAccountSid: null,
         twilioAuthToken: null,
         twilioPhoneNumber: null,
+        openaiApiKey: null,
         ...configUpdate
       };
     } else {
