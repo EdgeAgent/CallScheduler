@@ -1,6 +1,6 @@
-import { eq, and, gte, lt } from "drizzle-orm";
+import { eq, and, gte, lt, desc, sql, avg, sum, count } from "drizzle-orm";
 import { db } from "./db";
-import { users, contacts, calls, appointments, configurations } from "@shared/schema";
+import { users, contacts, calls, appointments, configurations, callAnalytics, dailyMetrics, callRecordings, followUpTasks } from "@shared/schema";
 import type { 
   User, InsertUser, 
   Contact, InsertContact, 
@@ -156,5 +156,169 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return newConfig;
     }
+  }
+
+  // Advanced Analytics Methods
+  async getAdvancedStats(): Promise<{
+    totalCalls: number;
+    successfulCalls: number;
+    totalAppointments: number;
+    averageCallDuration: number;
+    conversionRate: number;
+    topPerformingVoices: Array<{ voice: string; successRate: number; callCount: number }>;
+    callVolumeByHour: Array<{ hour: number; callCount: number }>;
+    recentTrends: Array<{ date: string; calls: number; appointments: number; conversionRate: number }>;
+  }> {
+    // Get basic call stats
+    const [callStats] = await db
+      .select({
+        totalCalls: count(calls.id),
+        successfulCalls: sum(sql<number>`CASE WHEN ${calls.result} IN ('appointment_booked', 'callback_requested') THEN 1 ELSE 0 END`),
+        averageDuration: avg(calls.duration),
+      })
+      .from(calls);
+
+    const [appointmentStats] = await db
+      .select({
+        totalAppointments: count(appointments.id),
+      })
+      .from(appointments);
+
+    // Calculate conversion rate
+    const totalCalls = Number(callStats.totalCalls ?? 0);
+    const totalAppts = Number(appointmentStats.totalAppointments ?? 0);
+    const conversionRate = totalCalls > 0 ? (totalAppts / totalCalls) * 100 : 0;
+
+    // Get voice performance
+    const voiceStats = await db
+      .select({
+        voice: calls.voice,
+        callCount: count(calls.id),
+        successfulCalls: sum(sql<number>`CASE WHEN ${calls.result} = 'appointment_booked' THEN 1 ELSE 0 END`),
+      })
+      .from(calls)
+      .where(sql`${calls.voice} IS NOT NULL`)
+      .groupBy(calls.voice);
+
+    const topPerformingVoices = voiceStats.map(v => {
+      const count = Number(v.callCount ?? 0);
+      const success = Number(v.successfulCalls ?? 0);
+      return {
+        voice: v.voice || 'unknown',
+        callCount: count,
+        successRate: count > 0 ? (success / count) * 100 : 0,
+      };
+    }).sort((a, b) => b.successRate - a.successRate);
+
+    // Get call volume by hour
+    const hourlyStats = await db
+      .select({
+        hour: sql<number>`EXTRACT(HOUR FROM ${calls.startedAt})`,
+        callCount: count(calls.id),
+      })
+      .from(calls)
+      .groupBy(sql`EXTRACT(HOUR FROM ${calls.startedAt})`)
+      .orderBy(sql`EXTRACT(HOUR FROM ${calls.startedAt})`);
+
+    // Get recent trends (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const recentTrends = await db
+      .select({
+        date: sql<string>`DATE(${calls.startedAt})`,
+        calls: count(calls.id),
+        appointments: sum(sql<number>`CASE WHEN ${calls.result} = 'appointment_booked' THEN 1 ELSE 0 END`),
+      })
+      .from(calls)
+      .where(gte(calls.startedAt, sevenDaysAgo))
+      .groupBy(sql`DATE(${calls.startedAt})`)
+      .orderBy(sql`DATE(${calls.startedAt})`);
+
+    const trendsWithConversion = recentTrends.map(t => {
+      const appts = Number(t.appointments ?? 0);
+      const calls = Number(t.calls ?? 0);
+      return {
+        date: t.date,
+        calls,
+        appointments: appts,
+        conversionRate: calls > 0 ? (appts / calls) * 100 : 0,
+      };
+    });
+
+    return {
+      totalCalls,
+      successfulCalls: Number(callStats.successfulCalls ?? 0),
+      totalAppointments: totalAppts,
+      averageCallDuration: Number(callStats.averageDuration ?? 0),
+      conversionRate,
+      topPerformingVoices,
+      callVolumeByHour: hourlyStats.map(stat => ({
+        hour: stat.hour,
+        callCount: stat.callCount,
+      })),
+      recentTrends: trendsWithConversion,
+    };
+  }
+
+  async getCallAnalytics(limit: number = 50): Promise<Array<{
+    call: Call;
+    analytics: any;
+    contact: Contact | null;
+  }>> {
+    return await db
+      .select({
+        call: calls,
+        analytics: callAnalytics,
+        contact: contacts,
+      })
+      .from(calls)
+      .leftJoin(callAnalytics, eq(calls.id, callAnalytics.callId))
+      .leftJoin(contacts, eq(calls.contactId, contacts.id))
+      .orderBy(desc(calls.startedAt))
+      .limit(limit);
+  }
+
+  async getDailyMetricsRange(startDate: Date, endDate: Date): Promise<any[]> {
+    return await db
+      .select()
+      .from(dailyMetrics)
+      .where(and(
+        gte(dailyMetrics.date, startDate),
+        lt(dailyMetrics.date, endDate)
+      ))
+      .orderBy(dailyMetrics.date);
+  }
+
+  async getFollowUpTasks(status?: string): Promise<any[]> {
+    const whereClause = status ? eq(followUpTasks.status, status) : undefined;
+    
+    return await db
+      .select({
+        task: followUpTasks,
+        contact: contacts,
+        call: calls,
+      })
+      .from(followUpTasks)
+      .leftJoin(contacts, eq(followUpTasks.contactId, contacts.id))
+      .leftJoin(calls, eq(followUpTasks.callId, calls.id))
+      .where(whereClause)
+      .orderBy(followUpTasks.scheduledFor);
+  }
+
+  async getCallRecordings(callId?: string): Promise<any[]> {
+    const whereClause = callId ? eq(callRecordings.callId, callId) : undefined;
+    
+    return await db
+      .select({
+        recording: callRecordings,
+        call: calls,
+        contact: contacts,
+      })
+      .from(callRecordings)
+      .leftJoin(calls, eq(callRecordings.callId, calls.id))
+      .leftJoin(contacts, eq(calls.contactId, contacts.id))
+      .where(whereClause)
+      .orderBy(desc(callRecordings.createdAt));
   }
 }
