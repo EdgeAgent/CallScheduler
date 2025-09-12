@@ -1,4 +1,5 @@
 import twilio from 'twilio';
+import type { Configuration } from '@shared/schema';
 
 export class TwilioService {
   private client: twilio.Twilio | null = null;
@@ -7,12 +8,29 @@ export class TwilioService {
   private phoneNumber: string;
 
   constructor() {
+    // Initialize with environment variables as fallback
     this.accountSid = process.env.TWILIO_ACCOUNT_SID || '';
     this.authToken = process.env.TWILIO_AUTH_TOKEN || '';
     this.phoneNumber = process.env.TWILIO_PHONE_NUMBER || '';
     
+    this.initializeClient();
+  }
+
+  // Update configuration from database settings
+  updateConfiguration(config: Configuration | undefined) {
+    // Use configured credentials if available, fallback to environment variables
+    this.accountSid = config?.twilioAccountSid || process.env.TWILIO_ACCOUNT_SID || '';
+    this.authToken = config?.twilioAuthToken || process.env.TWILIO_AUTH_TOKEN || '';
+    this.phoneNumber = config?.twilioPhoneNumber || process.env.TWILIO_PHONE_NUMBER || '';
+    
+    this.initializeClient();
+  }
+
+  private initializeClient() {
     if (this.accountSid && this.authToken) {
       this.client = twilio(this.accountSid, this.authToken);
+    } else {
+      this.client = null;
     }
   }
 
@@ -135,3 +153,8 @@ export class TwilioService {
 }
 
 export const twilioService = new TwilioService();
+
+// Export configuration update function
+export function updateTwilioConfiguration(config: Configuration | undefined) {
+  twilioService.updateConfiguration(config);
+}

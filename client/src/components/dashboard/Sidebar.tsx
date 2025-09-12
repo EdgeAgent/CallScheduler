@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3, current: true },
   { name: 'Scheduler', href: '/scheduler', icon: Calendar, current: false },
+  { name: 'Settings', href: '/settings', icon: Settings, current: false },
 ];
 
 export function Sidebar() {

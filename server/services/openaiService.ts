@@ -1,9 +1,34 @@
 import OpenAI from "openai";
+import type { Configuration } from '@shared/schema';
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "default_key" 
-});
+class OpenAIClient {
+  private client: OpenAI;
+  private apiKey: string;
+
+  constructor() {
+    // Initialize with environment variables as fallback
+    this.apiKey = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "";
+    this.client = new OpenAI({ apiKey: this.apiKey || "default_key" });
+  }
+
+  // Update configuration from database settings
+  updateConfiguration(config: Configuration | undefined) {
+    // Use configured API key if available, fallback to environment variables
+    this.apiKey = config?.openaiApiKey || process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "";
+    this.client = new OpenAI({ apiKey: this.apiKey || "default_key" });
+  }
+
+  isConfigured(): boolean {
+    return this.apiKey !== "" && this.apiKey !== "default_key";
+  }
+
+  getClient(): OpenAI {
+    return this.client;
+  }
+}
+
+const openaiClient = new OpenAIClient();
 
 export interface ConversationMessage {
   role: 'system' | 'user' | 'assistant';
@@ -60,7 +85,7 @@ export class OpenAIService {
         { role: 'user' as const, content: userInput }
       ];
 
-      const response = await openai.chat.completions.create({
+      const response = await openaiClient.getClient().chat.completions.create({
         model: "gpt-5",
         messages,
         response_format: { type: "json_object" },
@@ -183,7 +208,7 @@ Focus on understanding the REAL intent behind their words, not just surface mean
         .map(msg => `${msg.role}: ${msg.content}`)
         .join('\n');
 
-      const response = await openai.chat.completions.create({
+      const response = await openaiClient.getClient().chat.completions.create({
         model: "gpt-5",
         messages: [
           {
@@ -237,7 +262,7 @@ Focus on understanding the REAL intent behind their words, not just surface mean
   // Generate personalized conversation starters based on contact info
   async generatePersonalizedOpener(context: CallContext): Promise<string> {
     try {
-      const response = await openai.chat.completions.create({
+      const response = await openaiClient.getClient().chat.completions.create({
         model: "gpt-5",
         messages: [
           {
@@ -285,7 +310,7 @@ Respond with just the opener text, no JSON.`
         .map(msg => `${msg.role}: ${msg.content}`)
         .join('\n');
 
-      const response = await openai.chat.completions.create({
+      const response = await openaiClient.getClient().chat.completions.create({
         model: "gpt-5",
         messages: [
           {
@@ -341,7 +366,7 @@ Respond with JSON:
     responseStrategy: string;
   }> {
     try {
-      const response = await openai.chat.completions.create({
+      const response = await openaiClient.getClient().chat.completions.create({
         model: "gpt-5",
         messages: [
           {
@@ -404,3 +429,12 @@ Respond with JSON:
 }
 
 export const openaiService = new OpenAIService();
+
+// Export configuration update functions
+export function updateOpenAIConfiguration(config: Configuration | undefined) {
+  openaiClient.updateConfiguration(config);
+}
+
+export function isOpenAIConfigured(): boolean {
+  return openaiClient.isConfigured();
+}

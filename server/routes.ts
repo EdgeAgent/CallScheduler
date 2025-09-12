@@ -2,12 +2,24 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { twilioService } from "./services/twilioService";
-import { openaiService, type ConversationMessage } from "./services/openaiService";
+import { twilioService, updateTwilioConfiguration } from "./services/twilioService";
+import { openaiService, updateOpenAIConfiguration, type ConversationMessage } from "./services/openaiService";
 import { insertCallSchema, insertContactSchema, insertAppointmentSchema, insertConfigurationSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
+  
+  // Initialize services with stored configuration on startup
+  try {
+    const config = await storage.getConfiguration();
+    if (config) {
+      updateTwilioConfiguration(config);
+      updateOpenAIConfiguration(config);
+      console.log('Services initialized with stored configuration');
+    }
+  } catch (error) {
+    console.error('Failed to initialize services with configuration:', error);
+  }
   
   // WebSocket server for real-time updates
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
@@ -396,7 +408,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const configUpdate = insertConfigurationSchema.parse(req.body);
       const config = await storage.updateConfiguration(configUpdate);
-      res.json(config);
+      
+      // CRITICAL: Update services with new configuration
+      updateTwilioConfiguration(config);
+      updateOpenAIConfiguration(config);
+      
+      // SECURITY: Never expose sensitive credentials to frontend
+      const safeConfig = {
+        ...config,
+        twilioAccountSid: config.twilioAccountSid ? '***HIDDEN***' : null,
+        twilioAuthToken: config.twilioAuthToken ? '***HIDDEN***' : null,
+        openaiApiKey: config.openaiApiKey ? '***HIDDEN***' : null
+      };
+      
+      res.json(safeConfig);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
