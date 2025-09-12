@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Contact, type InsertContact, type Call, type InsertCall, type Appointment, type InsertAppointment, type Configuration, type InsertConfiguration, users, contacts, calls, appointments, configurations } from "@shared/schema";
+import { type User, type InsertUser, type Contact, type InsertContact, type Call, type InsertCall, type Appointment, type InsertAppointment, type Campaign, type InsertCampaign, type Configuration, type InsertConfiguration, users, contacts, calls, appointments, campaigns, configurations } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import { Pool } from '@neondatabase/serverless';
@@ -32,6 +32,13 @@ export interface IStorage {
   updateAppointment(id: string, appointment: Partial<Appointment>): Promise<Appointment | undefined>;
   deleteAppointment(id: string): Promise<boolean>;
   
+  // Campaigns
+  getCampaigns(): Promise<Campaign[]>;
+  getCampaign(id: string): Promise<Campaign | undefined>;
+  createCampaign(campaign: InsertCampaign): Promise<Campaign>;
+  updateCampaign(id: string, campaign: Partial<Campaign>): Promise<Campaign | undefined>;
+  deleteCampaign(id: string): Promise<boolean>;
+  
   // Configuration
   getConfiguration(): Promise<Configuration | undefined>;
   updateConfiguration(config: Partial<Configuration>): Promise<Configuration>;
@@ -42,6 +49,7 @@ export class MemStorage implements IStorage {
   private contacts: Map<string, Contact>;
   private calls: Map<string, Call>;
   private appointments: Map<string, Appointment>;
+  private campaigns: Map<string, Campaign>;
   private configuration: Configuration | undefined;
 
   constructor() {
@@ -49,6 +57,7 @@ export class MemStorage implements IStorage {
     this.contacts = new Map();
     this.calls = new Map();
     this.appointments = new Map();
+    this.campaigns = new Map();
     
     // Initialize default configuration - credentials should be set via environment variables
     this.configuration = {
@@ -321,6 +330,38 @@ export class MemStorage implements IStorage {
     return this.appointments.delete(id);
   }
 
+  async getCampaigns(): Promise<Campaign[]> {
+    return Array.from(this.campaigns.values());
+  }
+
+  async getCampaign(id: string): Promise<Campaign | undefined> {
+    return this.campaigns.get(id);
+  }
+
+  async createCampaign(campaign: InsertCampaign): Promise<Campaign> {
+    const newCampaign: Campaign = {
+      id: randomUUID(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...campaign,
+    };
+    this.campaigns.set(newCampaign.id, newCampaign);
+    return newCampaign;
+  }
+
+  async updateCampaign(id: string, campaignUpdate: Partial<Campaign>): Promise<Campaign | undefined> {
+    const existing = this.campaigns.get(id);
+    if (!existing) return undefined;
+    
+    const updated: Campaign = { ...existing, ...campaignUpdate, updatedAt: new Date() };
+    this.campaigns.set(id, updated);
+    return updated;
+  }
+
+  async deleteCampaign(id: string): Promise<boolean> {
+    return this.campaigns.delete(id);
+  }
+
   async getConfiguration(): Promise<Configuration | undefined> {
     return this.configuration;
   }
@@ -478,6 +519,34 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAppointment(id: string): Promise<boolean> {
     const result = await this.db.delete(appointments).where(eq(appointments.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getCampaigns(): Promise<Campaign[]> {
+    return await this.db.select().from(campaigns);
+  }
+
+  async getCampaign(id: string): Promise<Campaign | undefined> {
+    const result = await this.db.select().from(campaigns).where(eq(campaigns.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createCampaign(campaign: InsertCampaign): Promise<Campaign> {
+    const result = await this.db.insert(campaigns).values(campaign).returning();
+    return result[0];
+  }
+
+  async updateCampaign(id: string, campaignUpdate: Partial<Campaign>): Promise<Campaign | undefined> {
+    const result = await this.db
+      .update(campaigns)
+      .set({ ...campaignUpdate, updatedAt: new Date() })
+      .where(eq(campaigns.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteCampaign(id: string): Promise<boolean> {
+    const result = await this.db.delete(campaigns).where(eq(campaigns.id, id));
     return (result.rowCount ?? 0) > 0;
   }
 

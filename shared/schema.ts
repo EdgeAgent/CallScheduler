@@ -47,6 +47,22 @@ export const appointments = pgTable("appointments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const campaigns = pgTable("campaigns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default('draft'), // 'draft', 'active', 'paused', 'completed'
+  script: text("script").notNull(),
+  voice: text("voice").default('sarah'),
+  contactIds: text("contact_ids").array().default([]), // Array of contact IDs
+  totalContacts: integer("total_contacts").default(0),
+  callsMade: integer("calls_made").default(0),
+  successfulCalls: integer("successful_calls").default(0),
+  appointmentsBooked: integer("appointments_booked").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const configurations = pgTable("configurations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   defaultVoice: text("default_voice").default('sarah'),
@@ -84,6 +100,12 @@ export const insertAppointmentSchema = createInsertSchema(appointments).omit({
   }),
 });
 
+export const insertCampaignSchema = createInsertSchema(campaigns).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertConfigurationSchema = createInsertSchema(configurations).omit({
   id: true,
 });
@@ -99,6 +121,9 @@ export type Call = typeof calls.$inferSelect;
 
 export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 export type Appointment = typeof appointments.$inferSelect;
+
+export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
+export type Campaign = typeof campaigns.$inferSelect;
 
 export type InsertConfiguration = z.infer<typeof insertConfigurationSchema>;
 export type Configuration = typeof configurations.$inferSelect;
