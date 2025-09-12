@@ -176,7 +176,17 @@ Focus on understanding the REAL intent behind their words, not just surface mean
   async analyzeCallOutcome(conversation: ConversationMessage[]): Promise<{
     outcome: 'appointment_booked' | 'callback_requested' | 'not_interested' | 'no_answer' | 'voicemail';
     summary: string;
+    sentiment: 'positive' | 'negative' | 'neutral';
+    keyInsights: string[];
+    objections: string[];
     nextAction?: string;
+    followUpStrategy?: string;
+    customerProfile?: {
+      decisionMaker: boolean;
+      budget: 'low' | 'medium' | 'high' | 'unknown';
+      timeline: 'immediate' | 'short' | 'long' | 'unknown';
+      painPoints: string[];
+    };
   }> {
     try {
       const conversationText = conversation
@@ -188,11 +198,21 @@ Focus on understanding the REAL intent behind their words, not just surface mean
         messages: [
           {
             role: 'system',
-            content: `Analyze this phone call conversation and determine the outcome. Respond with JSON in this format:
+            content: `Analyze this phone call conversation comprehensively. Look for emotional cues, hidden objections, pain points, and decision-making patterns. Respond with JSON in this format:
 {
   "outcome": "appointment_booked|callback_requested|not_interested|no_answer|voicemail",
   "summary": "Brief summary of what happened in the call",
-  "nextAction": "Recommended next action if any"
+  "sentiment": "positive|negative|neutral",
+  "keyInsights": ["Key insight 1", "Key insight 2"],
+  "objections": ["Objection 1", "Objection 2"],
+  "nextAction": "Recommended next action",
+  "followUpStrategy": "How to approach follow-up",
+  "customerProfile": {
+    "decisionMaker": true/false,
+    "budget": "low|medium|high|unknown",
+    "timeline": "immediate|short|long|unknown",
+    "painPoints": ["Pain point 1", "Pain point 2"]
+  }
 }`
           },
           {
@@ -201,15 +221,144 @@ Focus on understanding the REAL intent behind their words, not just surface mean
           }
         ],
         response_format: { type: "json_object" },
-        max_tokens: 300,
+        max_tokens: 800,
       });
 
-      return JSON.parse(response.choices[0].message.content || '{"outcome": "no_answer", "summary": "Call analysis failed"}');
+      const result = JSON.parse(response.choices[0].message.content || '{}');
+      return {
+        outcome: result.outcome || 'no_answer',
+        summary: result.summary || 'Call analysis failed',
+        sentiment: result.sentiment || 'neutral',
+        keyInsights: result.keyInsights || [],
+        objections: result.objections || [],
+        nextAction: result.nextAction,
+        followUpStrategy: result.followUpStrategy,
+        customerProfile: result.customerProfile
+      };
     } catch (error: any) {
       console.error('Call analysis error:', error);
       return {
         outcome: 'no_answer',
         summary: 'Unable to analyze call outcome',
+        sentiment: 'neutral',
+        keyInsights: [],
+        objections: [],
+      };
+    }
+  }
+
+  // Advanced conversation context management
+  async updateConversationContext(
+    context: CallContext, 
+    newMessage: ConversationMessage,
+    aiResponse: any
+  ): Promise<CallContext> {
+    // Update conversation stage based on AI response
+    const updatedContext: CallContext = {
+      ...context,
+      conversationStage: aiResponse.nextStage || context.conversationStage,
+      previousMessages: [...context.previousMessages, newMessage]
+    };
+
+    // Add sentiment tracking to message
+    newMessage.sentiment = aiResponse.sentiment;
+    newMessage.confidence = aiResponse.confidence;
+
+    return updatedContext;
+  }
+
+  // Generate personalized conversation starters based on contact info
+  async generatePersonalizedOpener(context: CallContext): Promise<string> {
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          {
+            role: 'system',
+            content: `Create a personalized, natural phone call opener. Be warm, professional, and reference specific context when appropriate.
+
+Context:
+- Contact: ${context.contactName || 'Prospect'}
+- Business: ${context.contactInfo?.businessType || 'Unknown'}
+- Purpose: ${context.purpose}
+- Previous notes: ${context.contactInfo?.notes || 'None'}
+
+Guidelines:
+1. Use their name naturally
+2. Be specific about why you're calling
+3. Reference any previous interactions if mentioned
+4. Create immediate value or curiosity
+5. Ask permission to continue ("Is now a good time?")
+6. Keep it under 40 words
+
+Respond with just the opener text, no JSON.`
+          }
+        ],
+        max_tokens: 100,
+        temperature: 0.8,
+      });
+
+      return response.choices[0].message.content || "Hi there! I hope you're having a great day. I'm calling about an opportunity that might interest you. Is now a good time to chat for just a minute?";
+    } catch (error: any) {
+      console.error('Opener generation error:', error);
+      return "Hi there! I hope you're having a great day. I'm calling about an opportunity that might interest you. Is now a good time to chat for just a minute?";
+    }
+  }
+
+  // Predict conversation outcome and suggest next best actions
+  async predictConversationFlow(context: CallContext): Promise<{
+    nextBestActions: string[];
+    outcomeConfidence: number;
+    recommendedStage: string;
+    riskFactors: string[];
+    opportunities: string[];
+  }> {
+    try {
+      const conversationHistory = context.previousMessages
+        .map(msg => `${msg.role}: ${msg.content}`)
+        .join('\n');
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-5",
+        messages: [
+          {
+            role: 'system',
+            content: `Analyze this conversation and predict the best next moves. Consider emotional state, objections, interest level, and conversation patterns.
+
+Current stage: ${context.conversationStage}
+Conversation so far:
+${conversationHistory}
+
+Respond with JSON:
+{
+  "nextBestActions": ["Action 1", "Action 2", "Action 3"],
+  "outcomeConfidence": 0.0-1.0,
+  "recommendedStage": "stage_name",
+  "riskFactors": ["Risk 1", "Risk 2"],
+  "opportunities": ["Opportunity 1", "Opportunity 2"]
+}`
+          }
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 400,
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || '{}');
+      return {
+        nextBestActions: result.nextBestActions || ["Continue conversation naturally"],
+        outcomeConfidence: result.outcomeConfidence || 0.5,
+        recommendedStage: result.recommendedStage || context.conversationStage || 'discovery',
+        riskFactors: result.riskFactors || [],
+        opportunities: result.opportunities || []
+      };
+    } catch (error: any) {
+      console.error('Flow prediction error:', error);
+      return {
+        nextBestActions: ["Continue conversation naturally"],
+        outcomeConfidence: 0.5,
+        recommendedStage: context.conversationStage || 'discovery',
+        riskFactors: [],
+        opportunities: []
       };
     }
   }
