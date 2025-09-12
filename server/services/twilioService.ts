@@ -22,7 +22,7 @@ export class TwilioService {
 
   async makeCall(to: string, webhookUrl: string): Promise<string> {
     if (!this.client) {
-      throw new Error('Twilio is not configured');
+      throw new Error('Twilio is not configured. Please check your Twilio credentials.');
     }
 
     try {
@@ -37,6 +37,26 @@ export class TwilioService {
 
       return call.sid;
     } catch (error: any) {
+      console.error('Twilio error:', error);
+      
+      // Handle specific Twilio errors
+      if (error.message && error.message.includes('unverified')) {
+        throw new Error('This phone number is not verified for your Twilio trial account. Please verify the number in your Twilio console or use a verified number.');
+      }
+      
+      if (error.message && error.message.includes('Trial accounts')) {
+        throw new Error('Trial account limitation: You can only call verified phone numbers. Please verify this number in your Twilio console.');
+      }
+      
+      if (error.code === 21211) {
+        throw new Error('Invalid phone number format. Please use a valid phone number with country code (e.g., +1234567890).');
+      }
+      
+      if (error.code === 21212) {
+        throw new Error('Invalid "From" phone number. Please check your Twilio phone number configuration.');
+      }
+      
+      // Generic error
       throw new Error(`Failed to make call: ${error.message}`);
     }
   }
