@@ -104,6 +104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initiate a new call
   app.post('/api/calls/initiate', async (req, res) => {
     try {
+      console.log('Call initiate request body:', req.body);
       const { phoneNumber, contactName, purpose, voice } = req.body;
       
       if (!phoneNumber) {
