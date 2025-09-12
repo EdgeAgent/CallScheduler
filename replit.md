@@ -84,3 +84,13 @@ The system broadcasts updates to all connected clients automatically when call s
 - **ESBuild**: Server-side TypeScript compilation and bundling
 - **TypeScript**: Full-stack type safety with path mapping
 - **PostCSS**: CSS processing with Tailwind CSS integration
+
+## Recent Changes
+
+### API Configuration System (September 12, 2025)
+- **Complete API credential configuration system**: Users can now supply their own Twilio and OpenAI API keys through a secure settings interface instead of relying on hardcoded environment variables
+- **Security implementation**: All API responses mask sensitive credentials as "***HIDDEN***" to prevent exposure
+- **Runtime service updates**: Services automatically apply new credentials when configuration changes
+- **Server initialization**: Stored configuration is loaded and applied to services on server startup
+- **Settings page**: Comprehensive UI for managing Twilio credentials (Account SID, Auth Token, Phone Number), OpenAI API key, and general settings (voice, speed, AI model)
+- **Navigation integration**: Settings accessible via sidebar navigation with proper routing
