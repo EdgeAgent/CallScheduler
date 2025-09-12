@@ -35,11 +35,12 @@ const MONTHS = [
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function CalendarGrid({ year, month, appointments, onDateClick }: {
+function CalendarGrid({ year, month, appointments, onDateClick, onAppointmentClick }: {
   year: number;
   month: number;
   appointments: Appointment[];
   onDateClick: (date: Date) => void;
+  onAppointmentClick: (appointment: Appointment) => void;
 }) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
@@ -78,8 +79,12 @@ function CalendarGrid({ year, month, appointments, onDateClick }: {
           {dayAppointments.map(apt => (
             <div
               key={apt.id}
-              className="text-xs p-1 bg-primary/10 text-primary rounded border-l-2 border-primary truncate"
+              className="text-xs p-1 bg-primary/10 text-primary rounded border-l-2 border-primary truncate cursor-pointer hover:bg-primary/20 transition-colors"
               data-testid={`appointment-${apt.id}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAppointmentClick(apt);
+              }}
             >
               <div className="font-medium">{new Date(apt.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
               <div className="truncate">{apt.contactName}</div>
@@ -110,6 +115,8 @@ export function Calendar() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showAppointmentDialog, setShowAppointmentDialog] = useState(false);
   const [showContactDialog, setShowContactDialog] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -129,6 +136,28 @@ export function Calendar() {
       return response.json();
     },
   });
+
+  // Get all appointments for edit functionality
+  const { data: allAppointments = [] } = useQuery<Appointment[]>({
+    queryKey: ['/api/appointments'],
+  });
+
+  // Check for edit parameter in URL
+  useEffect(() => {
+    if (!allAppointments || allAppointments.length === 0) return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('edit');
+    if (editId) {
+      // Find the appointment to edit
+      const appointmentToEdit = allAppointments.find((apt: Appointment) => apt.id === editId);
+      if (appointmentToEdit) {
+        handleEditAppointment(appointmentToEdit);
+        // Clear the URL parameter
+        window.history.replaceState({}, '', '/calendar');
+      }
+    }
+  }, [allAppointments]);
 
   const appointmentForm = useForm<AppointmentFormData>({
     resolver: zodResolver(appointmentFormSchema),
@@ -187,6 +216,25 @@ export function Calendar() {
     },
   });
 
+  const updateAppointmentMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<AppointmentFormData> }) => {
+      const response = await apiRequest('PUT', `/api/appointments/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments/month'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/appointments/today'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/stats'] });
+      setShowAppointmentDialog(false);
+      setEditingAppointment(null);
+      appointmentForm.reset();
+      toast({ title: 'Appointment updated successfully' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Failed to update appointment', description: error.message, variant: 'destructive' });
+    },
+  });
+
   const deleteAppointmentMutation = useMutation({
     mutationFn: async (id: string) => {
       const response = await apiRequest('DELETE', `/api/appointments/${id}`);
@@ -215,12 +263,45 @@ export function Calendar() {
 
   const handleDateClick = (date: Date) => {
     setSelectedDate(date);
+    setEditingAppointment(null);
+    appointmentForm.reset({
+      contactName: '',
+      phoneNumber: '',
+      scheduledTime: '',
+      status: 'scheduled',
+      purpose: '',
+      notes: '',
+      contactId: undefined,
+    });
     const isoString = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 9, 0).toISOString();
     appointmentForm.setValue('scheduledTime', isoString.slice(0, 16));
     setShowAppointmentDialog(true);
   };
 
+  const handleEditAppointment = (appointment: Appointment) => {
+    setEditingAppointment(appointment);
+    const scheduledTime = appointment.scheduledTime 
+      ? new Date(appointment.scheduledTime).toISOString().slice(0, 16)
+      : '';
+    
+    appointmentForm.reset({
+      contactName: appointment.contactName,
+      phoneNumber: appointment.phoneNumber || '',
+      scheduledTime,
+      status: appointment.status,
+      purpose: appointment.purpose || '',
+      notes: appointment.notes || '',
+      contactId: appointment.contactId || undefined,
+    });
+    setShowAppointmentDialog(true);
+  };
+
   const onAppointmentSubmit = (data: AppointmentFormData) => {
+    if (editingAppointment) {
+      updateAppointmentMutation.mutate({ id: editingAppointment.id, data });
+      return;
+    }
+    
     const appointmentData = {
       contactName: data.contactName,
       phoneNumber: data.phoneNumber || undefined,
@@ -349,6 +430,7 @@ export function Calendar() {
                 month={month}
                 appointments={appointments}
                 onDateClick={handleDateClick}
+                onAppointmentClick={handleEditAppointment}
               />
             </CardContent>
           </Card>

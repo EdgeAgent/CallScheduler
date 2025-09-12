@@ -3,7 +3,8 @@ import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Phone, User } from "lucide-react";
+import { Calendar, Clock, Phone, User, Edit, Trash2 } from "lucide-react";
+import { Link } from "wouter";
 
 type Appointment = {
   id: string;
@@ -132,6 +133,17 @@ export default function Scheduler() {
                       <Badge className={getStatusColor(appointment.status)}>
                         {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
                       </Badge>
+                      <div className="flex items-center gap-1">
+                        <Link href={`/calendar?edit=${appointment.id}`}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            data-testid={`button-edit-appointment-${appointment.id}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </div>
                     </div>
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
                       {new Date(appointment.scheduledTime).toLocaleTimeString('en-US', { 
