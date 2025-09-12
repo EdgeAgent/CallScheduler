@@ -4,7 +4,11 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3, current: true },
+  { name: 'Active Calls', href: '/calls', icon: PhoneCall, current: false },
   { name: 'Scheduler', href: '/scheduler', icon: Calendar, current: false },
+  { name: 'Call History', href: '/history', icon: History, current: false },
+  { name: 'Contacts', href: '/contacts', icon: Users, current: false },
+  { name: 'Settings', href: '/settings', icon: Settings, current: false },
 ];
 
 export function Sidebar() {

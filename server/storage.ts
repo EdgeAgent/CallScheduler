@@ -1,6 +1,5 @@
 import { type User, type InsertUser, type Contact, type InsertContact, type Call, type InsertCall, type Appointment, type InsertAppointment, type Configuration, type InsertConfiguration } from "@shared/schema";
 import { randomUUID } from "crypto";
-import { DatabaseStorage } from "./database-storage";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -323,4 +322,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+export const storage = new MemStorage();
