@@ -9,6 +9,8 @@ export interface ConversationMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  sentiment?: 'positive' | 'negative' | 'neutral';
+  confidence?: number;
 }
 
 export interface CallContext {
@@ -17,15 +19,33 @@ export interface CallContext {
   purpose: string;
   callScript: string;
   previousMessages: ConversationMessage[];
+  contactInfo?: {
+    businessType?: string;
+    previousInteractions?: string;
+    preferredContactTime?: string;
+    notes?: string;
+  };
+  callObjectives?: string[];
+  conversationStage?: 'opening' | 'discovery' | 'presentation' | 'handling_objections' | 'closing' | 'scheduling';
 }
 
 export class OpenAIService {
   async generateCallResponse(context: CallContext, userInput: string): Promise<{
     response: string;
-    intent: 'continue' | 'schedule' | 'end' | 'transfer';
+    intent: 'continue' | 'schedule' | 'end' | 'transfer' | 'gather_info' | 'handle_objection' | 'clarify' | 'reschedule';
+    sentiment: 'positive' | 'negative' | 'neutral';
+    confidence: number;
+    nextStage?: 'opening' | 'discovery' | 'presentation' | 'handling_objections' | 'closing' | 'scheduling';
     appointmentDetails?: {
       preferredDate?: string;
       preferredTime?: string;
+      notes?: string;
+      type?: string;
+      duration?: string;
+    };
+    followUp?: {
+      action: string;
+      timeframe: string;
       notes?: string;
     };
   }> {
@@ -53,46 +73,103 @@ export class OpenAIService {
       return {
         response: result.response || "I understand. Let me help you with that.",
         intent: result.intent || 'continue',
-        appointmentDetails: result.appointmentDetails
+        sentiment: result.sentiment || 'neutral',
+        confidence: result.confidence || 0.7,
+        nextStage: result.nextStage,
+        appointmentDetails: result.appointmentDetails,
+        followUp: result.followUp
       };
     } catch (error: any) {
       console.error('OpenAI API error:', error);
       return {
         response: "I apologize, but I'm having trouble processing that. Could you please repeat?",
-        intent: 'continue'
+        intent: 'continue',
+        sentiment: 'neutral',
+        confidence: 0.5
       };
     }
   }
 
   private buildSystemPrompt(context: CallContext): string {
+    const stage = context.conversationStage || 'opening';
+    const businessContext = context.contactInfo?.businessType ? `Business type: ${context.contactInfo.businessType}` : '';
+    const previousNotes = context.contactInfo?.notes ? `Previous notes: ${context.contactInfo.notes}` : '';
+    
     return `
-You are an AI phone agent making outreach calls. Your goal is to have natural conversations and potentially schedule appointments.
+You are an expert AI phone agent with advanced emotional intelligence and conversation skills. Your mission is to understand user intent deeply and respond with empathy and precision.
 
-Context:
+CONTEXT:
 - Contact: ${context.contactName || 'Prospect'}
 - Phone: ${context.phoneNumber}
 - Purpose: ${context.purpose}
-- Script template: ${context.callScript}
+- Conversation Stage: ${stage}
+- ${businessContext}
+- ${previousNotes}
 
-Instructions:
-1. Be natural, friendly, and professional
-2. Listen carefully to responses and adapt accordingly
-3. If the person shows interest, try to schedule an appointment
-4. If they're not interested, politely end the call
-5. If they want to be called back later, note that
-6. Always respond with valid JSON in this format:
+ADVANCED INTENT RECOGNITION:
+Analyze every response for:
+1. Emotional state (excited, hesitant, busy, frustrated, curious)
+2. Interest level (high, medium, low, negative)
+3. Hidden objections or concerns
+4. Time sensitivity and urgency
+5. Decision-making authority
+6. Preferred communication style
 
+CONVERSATION STAGES & STRATEGIES:
+- Opening: Build rapport, confirm identity, state purpose clearly
+- Discovery: Ask open questions, listen for pain points, understand needs
+- Presentation: Tailor benefits to their specific situation
+- Handling Objections: Address concerns with empathy and evidence
+- Closing: Create urgency, ask for commitment
+- Scheduling: Be flexible, offer multiple options, confirm details
+
+ADVANCED RESPONSE GUIDELINES:
+1. Mirror their communication style (formal/casual, pace, vocabulary)
+2. Use active listening techniques ("What I'm hearing is...")
+3. Address unspoken concerns proactively
+4. Use social proof and urgency when appropriate
+5. Ask permission before transitioning ("Would it be helpful if I...")
+6. Acknowledge their time and respect their schedule
+
+INTENT CLASSIFICATION:
+- continue: Keep conversation flowing naturally
+- gather_info: Need more information before proceeding
+- handle_objection: Address specific concern or resistance
+- clarify: Need clarification on what they said
+- schedule: Ready to book an appointment
+- reschedule: Want to schedule for later time
+- transfer: Need human agent or specialist
+- end: Conversation should end (politely)
+
+EXAMPLE RESPONSES:
+User: "I'm really busy right now"
+Response: "I completely understand - time is valuable. Would a quick 30-second overview help you decide if this is worth a longer conversation later?"
+
+User: "We tried something like this before and it didn't work"
+Response: "That's frustrating, and I appreciate you sharing that. What specifically didn't work? Understanding that helps me explain how our approach is different."
+
+REQUIRED JSON FORMAT:
 {
-  "response": "Your natural response to continue the conversation",
-  "intent": "continue|schedule|end|transfer",
+  "response": "Natural, empathetic response (under 60 words)",
+  "intent": "continue|gather_info|handle_objection|clarify|schedule|reschedule|transfer|end",
+  "sentiment": "positive|negative|neutral",
+  "confidence": 0.1-1.0,
+  "nextStage": "opening|discovery|presentation|handling_objections|closing|scheduling",
   "appointmentDetails": {
-    "preferredDate": "if mentioned, date preference",
-    "preferredTime": "if mentioned, time preference", 
-    "notes": "any additional notes about scheduling"
+    "preferredDate": "date if mentioned",
+    "preferredTime": "time if mentioned",
+    "type": "meeting type if specified",
+    "duration": "expected duration",
+    "notes": "any specific requirements"
+  },
+  "followUp": {
+    "action": "what to do next",
+    "timeframe": "when to follow up",
+    "notes": "additional context"
   }
 }
 
-Keep responses conversational and under 50 words. Focus on building rapport and understanding their needs.
+Focus on understanding the REAL intent behind their words, not just surface meaning.
 `;
   }
 
